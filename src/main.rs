@@ -55,7 +55,7 @@ impl AesState {
     fn shift_rows(&mut self) {
         let t = self.state;
 
-        for i in  1..4 {
+        for i in 0..4 {
             self.state[i][0] = t[i][(0+i) % 4];
             self.state[i][1] = t[i][(1+i) % 4];
             self.state[i][2] = t[i][(2+i) % 4];
@@ -65,14 +65,46 @@ impl AesState {
         self.log_state("State after shift_rows");
     }
 
-    fn mix_columns(&mut self) {
-        let t: [[u8; NB]; 4] = self.state;
+    fn sub_shift_mix(&mut self) {
+        let s = self.state.clone();
+        
         for i in 0..NB {
+            // Shift rows
+            let mut t: [u8; 4] = [
+                s[0][(0+i) % 4], 
+                s[1][(1+i) % 4], 
+                s[2][(2+i) % 4], 
+                s[3][(3+i) % 4]
+            ];
+
+            // Apply s-box
+            s_box(&mut t[0]); 
+            s_box(&mut t[1]); 
+            s_box(&mut t[2]); 
+            s_box(&mut t[3]);
+
+            // MixColumns
+            self.state[0][i] = mul2(t[0]) ^ mul3(t[1]) ^ t[2]       ^ t[3];
+            self.state[1][i] = t[0]       ^ mul2(t[1]) ^ mul3(t[2]) ^ t[3];
+            self.state[2][i] = t[0]       ^ t[1]       ^ mul2(t[2]) ^ mul3(t[3]);
+            self.state[3][i] = mul3(t[0]) ^ t[1]       ^ t[2]       ^ mul2(t[3]);
+        }
+        self.log_state("State after all");
+    }
+
+    fn mix_columns(&mut self) {
+        for i in 0..NB {
+            let t: [u8; 4] = [
+                self.state[0][i], 
+                self.state[1][i], 
+                self.state[2][i], 
+                self.state[3][i]
+            ];
             let j = i;
-            self.state[0][j] = mul2(t[0][j]) ^ mul3(t[1][j]) ^ t[2][j]       ^ t[3][j];
-            self.state[1][j] = t[0][j]       ^ mul2(t[1][j]) ^ mul3(t[2][j]) ^ t[3][j];
-            self.state[2][j] = t[0][j]       ^ t[1][j]       ^ mul2(t[2][j]) ^ mul3(t[3][j]);
-            self.state[3][j] = mul3(t[0][j]) ^ t[1][j]       ^ t[2][j]       ^ mul2(t[3][j]);
+            self.state[0][j] = mul2(t[0]) ^ mul3(t[1]) ^ t[2]       ^ t[3];
+            self.state[1][j] = t[0]       ^ mul2(t[1]) ^ mul3(t[2]) ^ t[3];
+            self.state[2][j] = t[0]       ^ t[1]       ^ mul2(t[2]) ^ mul3(t[3]);
+            self.state[3][j] = mul3(t[0]) ^ t[1]       ^ t[2]       ^ mul2(t[3]);
         }
         self.log_state("State after mix_columns");
     }
@@ -218,9 +250,10 @@ impl AES {
             let j = NB*r;
             k_sch = [w[j], w[j+1], w[j+2], w[j+3]];
 
-            state.sub_bytes();
-            state.shift_rows();
-            state.mix_columns();
+            state.sub_shift_mix();
+            //state.sub_bytes();
+            //state.shift_rows();
+            //state.mix_columns();
             state.add_round_key(&k_sch);
         };
 
